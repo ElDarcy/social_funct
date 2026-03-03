@@ -1,0 +1,42 @@
+name: social_media_app
+description: A modern social media app built with Flutter
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase - updated versions compatible with Flutter 3.32 & Dart 3.8
+  firebase_core: ^2.23.0
+  firebase_auth: ^4.7.0
+  firebase_auth_web: ^5.9.0
+  cloud_firestore: ^4.17.5   # Downgraded to match compatibility
+  firebase_storage: ^11.1.0
+  firebase_storage_web: ^3.7.0
+
+  # State Management
+  provider: ^6.1.1
+
+  # Image & Video
+  image_picker: ^1.0.4
+  cached_network_image: ^3.3.1
+  video_player: ^2.8.2
+
+  # UI & Utilities
+  google_fonts: ^6.1.0
+  intl: ^0.19.0
+  uuid: ^4.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
