@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/post_model.dart';
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class PostService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -134,32 +136,58 @@ class PostService {
     }
   }
 
-  // Upload image to Firebase Storage
-  Future<String> uploadImage(File imageFile, String userId) async {
+  Future<String> uploadImage(dynamic file, String userId) async {
     try {
       String fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       Reference ref = _storage.ref().child('posts/$userId/$fileName');
 
-      await ref.putFile(imageFile);
-      String downloadUrl = await ref.getDownloadURL();
+      if (kIsWeb) {
+        // Web: file should be XFile
+        if (file is XFile) {
+          Uint8List bytes = await file.readAsBytes();
+          await ref.putData(bytes);
+        } else {
+          throw Exception('Invalid file type for web. Expected XFile.');
+        }
+      } else {
+        // Mobile: file should be File
+        if (file is File) {
+          await ref.putFile(file);
+        } else {
+          throw Exception('Invalid file type for mobile. Expected File.');
+        }
+      }
 
-      return downloadUrl;
+      return await ref.getDownloadURL();
     } catch (e) {
       print('Upload image error: $e');
       rethrow;
     }
   }
 
-  // Upload video to Firebase Storage
-  Future<String> uploadVideo(File videoFile, String userId) async {
+
+  // Upload video (mobile & web)
+  Future<String> uploadVideo(dynamic file, String userId) async {
     try {
       String fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.mp4';
       Reference ref = _storage.ref().child('videos/$userId/$fileName');
 
-      await ref.putFile(videoFile);
-      String downloadUrl = await ref.getDownloadURL();
+      if (kIsWeb) {
+        if (file is XFile) {
+          Uint8List bytes = await file.readAsBytes();
+          await ref.putData(bytes);
+        } else {
+          throw Exception('Invalid file type for web. Expected XFile.');
+        }
+      } else {
+        if (file is File) {
+          await ref.putFile(file);
+        } else {
+          throw Exception('Invalid file type for mobile. Expected File.');
+        }
+      }
 
-      return downloadUrl;
+      return await ref.getDownloadURL();
     } catch (e) {
       print('Upload video error: $e');
       rethrow;

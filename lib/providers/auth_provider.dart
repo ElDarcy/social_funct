@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -15,13 +16,14 @@ class AuthProvider with ChangeNotifier {
   String? get error => _error;
   bool get isAuthenticated => _currentUser != null;
 
-  // Initialize auth state
+  // Initialize authentication state
   Future<void> initializeAuth() async {
     _isLoading = true;
     notifyListeners();
 
     try {
       User? firebaseUser = _authService.getCurrentUser();
+
       if (firebaseUser != null) {
         _currentUser = await _authService.getCurrentUserData();
       }
@@ -33,7 +35,7 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Register
+  // Register new user
   Future<bool> register({
     required String email,
     required String password,
@@ -56,6 +58,9 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
         return true;
       }
+
+      _isLoading = false;
+      notifyListeners();
       return false;
     } catch (e) {
       _error = e.toString();
@@ -65,7 +70,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Login
+  // Login user
   Future<bool> login({
     required String email,
     required String password,
@@ -86,6 +91,9 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
         return true;
       }
+
+      _isLoading = false;
+      notifyListeners();
       return false;
     } catch (e) {
       _error = e.toString();
@@ -118,7 +126,6 @@ class AuthProvider with ChangeNotifier {
         profileImageUrl: profileImageUrl,
       );
 
-      // Refresh user data
       _currentUser = await _authService.getCurrentUserData();
       notifyListeners();
     } catch (e) {
@@ -127,7 +134,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Clear error
+  // Clear error message
   void clearError() {
     _error = null;
     notifyListeners();

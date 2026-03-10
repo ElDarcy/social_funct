@@ -95,12 +95,12 @@ class PostProvider with ChangeNotifier {
   }
 
   // Upload image
-  Future<String> uploadImage(File imageFile, String userId) async {
+  Future<String> uploadImage(dynamic imageFile, String userId) async {
     return await _postService.uploadImage(imageFile, userId);
   }
 
   // Upload video
-  Future<String> uploadVideo(File videoFile, String userId) async {
+  Future<String> uploadVideo(dynamic videoFile, String userId) async {
     return await _postService.uploadVideo(videoFile, userId);
   }
 }
