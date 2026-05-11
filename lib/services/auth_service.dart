@@ -6,38 +6,36 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Register new user
+  // =================== REGISTER ===================
   Future<UserModel?> register({
     required String email,
     required String password,
     required String username,
   }) async {
     try {
-      // Create user with email and password
       UserCredential credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Create user model
       UserModel user = UserModel(
         id: credential.user!.uid,
         username: username,
         email: email,
         createdAt: DateTime.now(),
+        following: [],
+        followers: [],
       );
 
-      // Save to Firestore
       await _firestore.collection('users').doc(user.id).set(user.toMap());
 
       return user;
     } catch (e) {
-      print('Registration error: $e');
       rethrow;
     }
   }
 
-  // Login user
+  // =================== LOGIN ===================
   Future<UserModel?> login({
     required String email,
     required String password,
@@ -48,7 +46,6 @@ class AuthService {
         password: password,
       );
 
-      // Get user data from Firestore
       DocumentSnapshot userDoc = await _firestore
           .collection('users')
           .doc(credential.user!.uid)
@@ -59,22 +56,21 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print('Login error: $e');
       rethrow;
     }
   }
 
-  // Logout user
+  // =================== LOGOUT ===================
   Future<void> logout() async {
     await _auth.signOut();
   }
 
-  // Get current user
+  // =================== GET CURRENT USER ===================
   User? getCurrentUser() {
     return _auth.currentUser;
   }
 
-  // Get current user data
+  // =================== GET CURRENT USER DATA ===================
   Future<UserModel?> getCurrentUserData() async {
     User? user = _auth.currentUser;
     if (user == null) return null;
@@ -90,25 +86,7 @@ class AuthService {
     return null;
   }
 
-  // Get user by ID
-  Future<UserModel?> getUserById(String userId) async {
-    try {
-      DocumentSnapshot userDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (userDoc.exists) {
-        return UserModel.fromDocument(userDoc);
-      }
-      return null;
-    } catch (e) {
-      print('Get user error: $e');
-      return null;
-    }
-  }
-
-  // Update user profile
+  // =================== UPDATE PROFILE ===================
   Future<void> updateProfile({
     required String userId,
     String? username,
@@ -123,21 +101,68 @@ class AuthService {
 
       await _firestore.collection('users').doc(userId).update(updates);
     } catch (e) {
-      print('Update profile error: $e');
       rethrow;
     }
   }
 
-  // Check if username is available
-  Future<bool> isUsernameAvailable(String username) async {
-    QuerySnapshot query = await _firestore
-        .collection('users')
-        .where('username', isEqualTo: username)
-        .get();
+  // =================== FOLLOW USER ===================
+  Future<void> followUser({
+    required String currentUserId,
+    required String targetUserId,
+  }) async {
+    try {
+      // Gumamit ng batch para siguradong parehong ma-uupdate o hindi
+      WriteBatch batch = _firestore.batch();
 
-    return query.docs.isEmpty;
+      DocumentReference currentUserRef = _firestore.collection('users').doc(currentUserId);
+      DocumentReference targetUserRef = _firestore.collection('users').doc(targetUserId);
+
+      // Update current user: dagdag sa following list
+      batch.update(currentUserRef, {
+        'following': FieldValue.arrayUnion([targetUserId]),
+        'followingCount': FieldValue.increment(1),
+      });
+
+      // Update target user: dagdag sa followers list
+      batch.update(targetUserRef, {
+        'followers': FieldValue.arrayUnion([currentUserId]),
+        'followersCount': FieldValue.increment(1),
+      });
+
+      await batch.commit();
+    } catch (e) {
+      print('Follow error: $e');
+      rethrow;
+    }
   }
 
-  // Stream of auth state changes
+  // =================== UNFOLLOW USER ===================
+  Future<void> unfollowUser({
+    required String currentUserId,
+    required String targetUserId,
+  }) async {
+    try {
+      WriteBatch batch = _firestore.batch();
+
+      DocumentReference currentUserRef = _firestore.collection('users').doc(currentUserId);
+      DocumentReference targetUserRef = _firestore.collection('users').doc(targetUserId);
+
+      batch.update(currentUserRef, {
+        'following': FieldValue.arrayRemove([targetUserId]),
+        'followingCount': FieldValue.increment(-1),
+      });
+
+      batch.update(targetUserRef, {
+        'followers': FieldValue.arrayRemove([currentUserId]),
+        'followersCount': FieldValue.increment(-1),
+      });
+
+      await batch.commit();
+    } catch (e) {
+      print('Unfollow error: $e');
+      rethrow;
+    }
+  }
+
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 }

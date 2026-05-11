@@ -1,16 +1,20 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
 import '../models/post_model.dart';
 import 'package:image_picker/image_picker.dart';
 
 class PostService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  // Create a new post
+  static const String _cloudName = 'dm8bztegh';
+  static const String _uploadPreset = 'social_app_unsigned';
+
+  // =================== CREATE POST ===================
   Future<PostModel> createPost({
     required String userId,
     required String caption,
@@ -29,186 +33,215 @@ class PostService {
 
       await _firestore.collection('posts').doc(post.id).set(post.toMap());
 
-      // Update user's post count
       await _firestore.collection('users').doc(userId).update({
         'postsCount': FieldValue.increment(1),
       });
 
       return post;
     } catch (e) {
-      print('Create post error: $e');
-      rethrow;
+      throw Exception('Failed to create post: $e');
     }
   }
 
-  // Get all posts for feed
+  // =================== GET FEED POSTS (ALL PUBLIC) ===================
+  // ✅ REMOVED orderBy temporarily to fix "infinite loading" / index issues
   Stream<List<PostModel>> getFeedPosts() {
     return _firestore
         .collection('posts')
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => PostModel.fromDocument(doc)).toList();
+      return snapshot.docs
+          .map((doc) => PostModel.fromDocument(doc))
+          .toList();
     });
   }
 
-  // Get posts by user
+  // =================== GET EXPLORE POSTS (NOT FOLLOWED) ===================
+  Stream<List<PostModel>> getExplorePosts(String currentUserId, List<String> followingIds) {
+    return _firestore
+        .collection('posts')
+        .limit(50)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => PostModel.fromDocument(doc))
+          .where((post) => post.userId != currentUserId && !followingIds.contains(post.userId))
+          .toList();
+    });
+  }
+
+  // =================== GET FOLLOWING FEED (REAL-TIME) ===================
+  Stream<List<PostModel>> getFollowingFeedPosts(String userId) {
+    return _firestore.collection('users').doc(userId).snapshots().asyncExpand((userDoc) {
+      if (!userDoc.exists) return Stream.value([]);
+      
+      final data = userDoc.data();
+      List<String> followingIds = List<String>.from(data?['following'] ?? []);
+      
+      if (!followingIds.contains(userId)) {
+        followingIds.add(userId);
+      }
+
+      if (followingIds.isEmpty) return Stream.value([]);
+
+      final chunk = followingIds.length > 30 
+          ? followingIds.sublist(followingIds.length - 30) 
+          : followingIds;
+
+      return _firestore
+          .collection('posts')
+          .where('userId', whereIn: chunk)
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => PostModel.fromDocument(doc))
+              .toList());
+    });
+  }
+
+  // =================== GET USER POSTS ===================
   Stream<List<PostModel>> getUserPosts(String userId) {
     return _firestore
         .collection('posts')
         .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) => PostModel.fromDocument(doc)).toList();
     });
   }
 
-  // Like/Unlike post
+  // =================== TOGGLE LIKE ===================
   Future<void> toggleLike({
     required String postId,
     required String userId,
   }) async {
     try {
       DocumentReference postRef = _firestore.collection('posts').doc(postId);
-      DocumentSnapshot postDoc = await postRef.get();
+      
+      await _firestore.runTransaction((transaction) async {
+        DocumentSnapshot postDoc = await transaction.get(postRef);
+        if (!postDoc.exists) return;
 
-      if (postDoc.exists) {
-        PostModel post = PostModel.fromDocument(postDoc);
-        bool isLiked = post.likedBy.contains(userId);
+        List<String> likedBy = List<String>.from(postDoc.get('likedBy') ?? []);
+        int currentLikes = postDoc.get('likesCount') ?? 0;
 
-        if (isLiked) {
-          await postRef.update({
-            'likesCount': FieldValue.increment(-1),
-            'likedBy': FieldValue.arrayRemove([userId]),
+        if (likedBy.contains(userId)) {
+          likedBy.remove(userId);
+          transaction.update(postRef, {
+            'likedBy': likedBy,
+            'likesCount': (currentLikes - 1).clamp(0, 999999),
           });
         } else {
-          await postRef.update({
-            'likesCount': FieldValue.increment(1),
-            'likedBy': FieldValue.arrayUnion([userId]),
+          likedBy.add(userId);
+          transaction.update(postRef, {
+            'likedBy': likedBy,
+            'likesCount': currentLikes + 1,
           });
         }
-      }
+      });
     } catch (e) {
-      print('Toggle like error: $e');
-      rethrow;
+      throw Exception('Failed to toggle like: $e');
     }
   }
 
-  // Save/Unsave post
+  // =================== TOGGLE SAVE ===================
   Future<void> toggleSave({
     required String postId,
     required String userId,
   }) async {
     try {
       DocumentReference postRef = _firestore.collection('posts').doc(postId);
-      DocumentSnapshot postDoc = await postRef.get();
+      
+      await _firestore.runTransaction((transaction) async {
+        DocumentSnapshot postDoc = await transaction.get(postRef);
+        if (!postDoc.exists) return;
 
-      if (postDoc.exists) {
-        PostModel post = PostModel.fromDocument(postDoc);
-        bool isSaved = post.savedBy.contains(userId);
+        List<String> savedBy = List<String>.from(postDoc.get('savedBy') ?? []);
+        int currentSaves = postDoc.get('savesCount') ?? 0;
 
-        if (isSaved) {
-          await postRef.update({
-            'savesCount': FieldValue.increment(-1),
-            'savedBy': FieldValue.arrayRemove([userId]),
+        if (savedBy.contains(userId)) {
+          savedBy.remove(userId);
+          transaction.update(postRef, {
+            'savedBy': savedBy,
+            'savesCount': (currentSaves - 1).clamp(0, 999999),
           });
         } else {
-          await postRef.update({
-            'savesCount': FieldValue.increment(1),
-            'savedBy': FieldValue.arrayUnion([userId]),
+          savedBy.add(userId);
+          transaction.update(postRef, {
+            'savedBy': savedBy,
+            'savesCount': currentSaves + 1,
           });
         }
-      }
+      });
     } catch (e) {
-      print('Toggle save error: $e');
-      rethrow;
+      throw Exception('Failed to toggle save: $e');
     }
   }
 
-  // Delete post
-  Future<void> deletePost(String postId) async {
+  // =================== UPDATE POST ===================
+  Future<void> updatePost({
+    required String postId,
+    required String caption,
+  }) async {
+    try {
+      await _firestore.collection('posts').doc(postId).update({
+        'caption': caption,
+      });
+    } catch (e) {
+      throw Exception('Failed to update post: $e');
+    }
+  }
+
+  // =================== DELETE POST ===================
+  Future<void> deletePost(String postId, String userId) async {
     try {
       await _firestore.collection('posts').doc(postId).delete();
+      await _firestore.collection('users').doc(userId).update({
+        'postsCount': FieldValue.increment(-1),
+      });
     } catch (e) {
-      print('Delete post error: $e');
-      rethrow;
+      throw Exception('Failed to delete post: $e');
     }
   }
 
+  // =================== CLOUDINARY UPLOAD ===================
   Future<String> uploadImage(dynamic file, String userId) async {
-    try {
-      String fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      Reference ref = _storage.ref().child('posts/$userId/$fileName');
-
-      if (kIsWeb) {
-        // Web: file should be XFile
-        if (file is XFile) {
-          Uint8List bytes = await file.readAsBytes();
-          await ref.putData(bytes);
-        } else {
-          throw Exception('Invalid file type for web. Expected XFile.');
-        }
-      } else {
-        // Mobile: file should be File
-        if (file is File) {
-          await ref.putFile(file);
-        } else {
-          throw Exception('Invalid file type for mobile. Expected File.');
-        }
-      }
-
-      return await ref.getDownloadURL();
-    } catch (e) {
-      print('Upload image error: $e');
-      rethrow;
-    }
+    return await _uploadToCloudinary(file: file, resourceType: 'image', userId: userId);
   }
 
-
-  // Upload video (mobile & web)
   Future<String> uploadVideo(dynamic file, String userId) async {
-    try {
-      String fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.mp4';
-      Reference ref = _storage.ref().child('videos/$userId/$fileName');
-
-      if (kIsWeb) {
-        if (file is XFile) {
-          Uint8List bytes = await file.readAsBytes();
-          await ref.putData(bytes);
-        } else {
-          throw Exception('Invalid file type for web. Expected XFile.');
-        }
-      } else {
-        if (file is File) {
-          await ref.putFile(file);
-        } else {
-          throw Exception('Invalid file type for mobile. Expected File.');
-        }
-      }
-
-      return await ref.getDownloadURL();
-    } catch (e) {
-      print('Upload video error: $e');
-      rethrow;
-    }
+    return await _uploadToCloudinary(file: file, resourceType: 'video', userId: userId);
   }
 
-  // Get single post
-  Future<PostModel?> getPost(String postId) async {
-    try {
-      DocumentSnapshot postDoc = await _firestore
-          .collection('posts')
-          .doc(postId)
-          .get();
+  Future<String> _uploadToCloudinary({
+    required dynamic file,
+    required String resourceType,
+    required String userId,
+  }) async {
+    final url = Uri.parse('');
 
-      if (postDoc.exists) {
-        return PostModel.fromDocument(postDoc);
-      }
-      return null;
-    } catch (e) {
-      print('Get post error: $e');
-      return null;
+    Uint8List bytes;
+    if (kIsWeb) {
+      bytes = await (file as XFile).readAsBytes();
+    } else {
+      bytes = await (file as File).readAsBytes();
+    }
+
+    final ext = resourceType == 'image' ? 'jpg' : 'mp4';
+    final filename = '${userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+    final request = http.MultipartRequest('POST', url)
+      ..fields['upload_preset'] = _uploadPreset
+      ..fields['folder'] = 'social_app/$userId'
+      ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['secure_url'];
+    } else {
+      throw Exception('Upload failed: ${response.body}');
     }
   }
 }

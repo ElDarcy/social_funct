@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/post_service.dart';
 import '../models/post_model.dart';
@@ -6,21 +5,25 @@ import '../models/post_model.dart';
 class PostProvider with ChangeNotifier {
   final PostService _postService = PostService();
 
-  List<PostModel> _posts = [];
   bool _isLoading = false;
   String? _error;
 
-  List<PostModel> get posts => _posts;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
   // Get feed posts
   Stream<List<PostModel>> getFeedPosts() {
-    return _postService.getFeedPosts().map((posts) {
-      _posts = posts;
-      notifyListeners();
-      return posts;
-    });
+    return _postService.getFeedPosts();
+  }
+
+  // Get following feed
+  Stream<List<PostModel>> getFollowingFeedPosts(String userId) {
+    return _postService.getFollowingFeedPosts(userId);
+  }
+
+  // Get explore posts
+  Stream<List<PostModel>> getExplorePosts(String userId, List<String> followingIds) {
+    return _postService.getExplorePosts(userId, followingIds);
   }
 
   // Get user posts
@@ -58,11 +61,16 @@ class PostProvider with ChangeNotifier {
     }
   }
 
-  // Toggle like
-  Future<void> toggleLike({
-    required String postId,
-    required String userId,
-  }) async {
+  // ✅ ADDED BACK: Missing upload methods
+  Future<String> uploadImage(dynamic file, String userId) async {
+    return await _postService.uploadImage(file, userId);
+  }
+
+  Future<String> uploadVideo(dynamic file, String userId) async {
+    return await _postService.uploadVideo(file, userId);
+  }
+
+  Future<void> toggleLike({required String postId, required String userId}) async {
     try {
       await _postService.toggleLike(postId: postId, userId: userId);
     } catch (e) {
@@ -71,11 +79,7 @@ class PostProvider with ChangeNotifier {
     }
   }
 
-  // Toggle save
-  Future<void> toggleSave({
-    required String postId,
-    required String userId,
-  }) async {
+  Future<void> toggleSave({required String postId, required String userId}) async {
     try {
       await _postService.toggleSave(postId: postId, userId: userId);
     } catch (e) {
@@ -84,23 +88,21 @@ class PostProvider with ChangeNotifier {
     }
   }
 
-  // Delete post
-  Future<void> deletePost(String postId) async {
+  Future<void> updatePost(String postId, String caption) async {
     try {
-      await _postService.deletePost(postId);
+      await _postService.updatePost(postId: postId, caption: caption);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
     }
   }
 
-  // Upload image
-  Future<String> uploadImage(dynamic imageFile, String userId) async {
-    return await _postService.uploadImage(imageFile, userId);
-  }
-
-  // Upload video
-  Future<String> uploadVideo(dynamic videoFile, String userId) async {
-    return await _postService.uploadVideo(videoFile, userId);
+  Future<void> deletePost(String postId, String userId) async {
+    try {
+      await _postService.deletePost(postId, userId);
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 }

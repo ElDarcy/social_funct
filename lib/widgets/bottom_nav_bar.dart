@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -14,44 +13,68 @@ class CustomBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 80,
-      margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
+      height: 70,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
+            width: 0.5,
           ),
-        ],
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildNavItem(0, Icons.home_outlined, Icons.home),
-          _buildNavItem(1, Icons.search_outlined, Icons.search),
-          const SizedBox(width: 40), // Space for FAB
-          _buildNavItem(3, Icons.chat_bubble_outline, Icons.chat_bubble),
-          _buildNavItem(4, Icons.person_outline, Icons.person),
+          _buildNavItem(context, 0, Icons.home_outlined, Icons.home),
+          _buildNavItem(context, 1, Icons.search_outlined, Icons.search),
+          _buildAddButton(context, 2),
+          _buildNavItem(context, 3, Icons.chat_bubble_outline, Icons.chat_bubble),
+          _buildNavItem(context, 4, Icons.person_outline, Icons.person),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData outlineIcon, IconData filledIcon) {
+  Widget _buildNavItem(BuildContext context, int index, IconData outlineIcon, IconData filledIcon) {
     final isSelected = currentIndex == index;
 
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
+        onTap: () => onTap(index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSelected ? filledIcon : outlineIcon,
+              color: isSelected 
+                  ? Theme.of(context).colorScheme.onSurface 
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              size: 28,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddButton(BuildContext context, int index) {
+    return Expanded(
+      child: InkWell(
         onTap: () => onTap(index),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: Theme.of(context).colorScheme.onSurface,
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Icon(
-            isSelected ? filledIcon : outlineIcon,
-            color: isSelected ? AppColors.primary : Colors.grey.shade500,
-            size: 26,
+            Icons.add,
+            color: Theme.of(context).colorScheme.onSurface,
+            size: 20,
           ),
         ),
       ),

@@ -11,6 +11,8 @@ class UserModel {
   final int postsCount;
   final bool isPrivate;
   final DateTime createdAt;
+  final List<String> following;
+  final List<String> followers;
 
   UserModel({
     required this.id,
@@ -23,6 +25,8 @@ class UserModel {
     this.postsCount = 0,
     this.isPrivate = false,
     required this.createdAt,
+    this.following = const [],
+    this.followers = const [],
   });
 
   factory UserModel.fromDocument(DocumentSnapshot doc) {
@@ -38,6 +42,8 @@ class UserModel {
       postsCount: data['postsCount'] ?? 0,
       isPrivate: data['isPrivate'] ?? false,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      following: List<String>.from(data['following'] ?? []),
+      followers: List<String>.from(data['followers'] ?? []),
     );
   }
 
@@ -52,6 +58,8 @@ class UserModel {
       'postsCount': postsCount,
       'isPrivate': isPrivate,
       'createdAt': createdAt,
+      'following': following,   // ✅
+      'followers': followers,   // ✅
     };
   }
 
@@ -64,6 +72,8 @@ class UserModel {
     int? followingCount,
     int? postsCount,
     bool? isPrivate,
+    List<String>? following,
+    List<String>? followers,
   }) {
     return UserModel(
       id: id,
@@ -76,6 +86,12 @@ class UserModel {
       postsCount: postsCount ?? this.postsCount,
       isPrivate: isPrivate ?? this.isPrivate,
       createdAt: createdAt,
+      following: following ?? this.following,
+      followers: followers ?? this.followers,
     );
   }
+
+  // ✅ Helper methods
+  bool isFollowing(String userId) => following.contains(userId);
+  bool isFollowedBy(String userId) => followers.contains(userId);
 }

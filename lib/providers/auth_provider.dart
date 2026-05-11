@@ -134,6 +134,39 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  Future<void> followUser(String targetUserId) async {
+  if (_currentUser == null) return;
+  try {
+    await _authService.followUser(
+      currentUserId: _currentUser!.id,
+      targetUserId: targetUserId,
+    );
+    // Refresh current user data
+    _currentUser = await _authService.getCurrentUserData();
+    notifyListeners();
+  } catch (e) {
+    _error = e.toString();
+    notifyListeners();
+  }
+}
+
+  // Unfollow user
+  Future<void> unfollowUser(String targetUserId) async {
+    if (_currentUser == null) return;
+    try {
+      await _authService.unfollowUser(
+        currentUserId: _currentUser!.id,
+        targetUserId: targetUserId,
+      );
+      // Refresh current user data
+      _currentUser = await _authService.getCurrentUserData();
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
   // Clear error message
   void clearError() {
     _error = null;

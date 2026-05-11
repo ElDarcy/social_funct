@@ -7,6 +7,7 @@ import '../create/create_post_screen.dart';
 import '../messages/chat_list_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../widgets/bottom_nav_bar.dart';
+import '../explore/explore_screen.dart'; // Inibalik ang ExploreScreen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,21 +19,24 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const FeedScreen(),
-    const Center(child: Text('Search', style: TextStyle(fontSize: 24))),
-    const CreatePostScreen(),
-    const ChatListScreen(),
-    ProfileScreen(),
-  ];
+  void _onPostCreated() {
+    setState(() => _currentIndex = 0); // Go back to feed
+  }
 
-  final List<String> _titles = [
-    'Social App',
-    'Search',
-    'Create',
-    'Messages',
-    'Profile',
-  ];
+  // List of screens for the navigation
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      const FeedScreen(),
+      const ExploreScreen(), // Gagamit ng ExploreScreen na may Search Bar sa loob
+      CreatePostScreen(onPostCreated: _onPostCreated),
+      const ChatListScreen(),
+      const ProfileScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,64 +44,70 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_currentIndex]),
-        actions: [
-          // Theme toggle
-          IconButton(
-            icon: Icon(
-              themeProvider.isDarkMode
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
+      appBar: _currentIndex == 2 || _currentIndex == 1 // Hide AppBar for Explore (index 1) and Create (index 2)
+          ? null 
+          : AppBar(
+              title: Text(_getTitle(_currentIndex), style: const TextStyle(fontWeight: FontWeight.bold)),
+              actions: [
+                if (_currentIndex == 0) ...[
+                   IconButton(
+                    icon: Icon(
+                      themeProvider.isDarkMode
+                          ? Icons.light_mode_outlined
+                          : Icons.dark_mode_outlined,
+                    ),
+                    onPressed: () => themeProvider.toggleTheme(),
+                  ),
+                ],
+                if (_currentIndex == 4) ...[
+                  IconButton(
+                    icon: const Icon(Icons.logout_outlined),
+                    onPressed: () => _showLogoutDialog(context, authProvider),
+                  ),
+                ]
+              ],
             ),
-            onPressed: () => themeProvider.toggleTheme(),
-          ),
-          // Logout
-          IconButton(
-            icon: const Icon(Icons.logout_outlined),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        authProvider.logout();
-                      },
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: _screens[_currentIndex],
-      floatingActionButton: _currentIndex == 2
-          ? null
-          : FloatingActionButton(
-        onPressed: () {
-          setState(() {
-            _currentIndex = 2;
-          });
-        },
-        child: const Icon(Icons.add),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
       ),
       bottomNavigationBar: CustomBottomNavBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _currentIndex = index),
+      ),
+    );
+  }
+
+  String _getTitle(int index) {
+    switch (index) {
+      case 0: return 'Social App';
+      case 1: return 'Explore';
+      case 2: return 'Create Post';
+      case 3: return 'Messages';
+      case 4: return 'Profile';
+      default: return '';
+    }
+  }
+
+  void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              authProvider.logout();
+            },
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
   }

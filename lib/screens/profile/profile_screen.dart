@@ -6,7 +6,7 @@ import '../auth/login_screen.dart';
 import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
-  ProfileScreen({super.key});
+  const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +64,7 @@ class ProfileScreen extends StatelessWidget {
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurface
-                                  .withOpacity(0.7),
+                                  .withValues(alpha: 0.7),
                             ),
                           ),
                         ),
@@ -117,7 +117,7 @@ class ProfileScreen extends StatelessWidget {
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface
-                                .withOpacity(0.5),
+                                .withValues(alpha: 0.5),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -127,7 +127,7 @@ class ProfileScreen extends StatelessWidget {
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurface
-                                  .withOpacity(0.7),
+                                  .withValues(alpha: 0.7),
                             ),
                           ),
                         ],
